@@ -8,25 +8,48 @@ U8X8_SSD1327_EA_W128128_4W_HW_SPI u8x8(/* cs=*/ 10, /* dc=*/ 7, /* reset=*/ 6);
 
 SdFatSdio sd;
 SdFile file;
+SdFile root;
+bool error = false;
+uint16_t numberOfFiles = 0;
+uint16_t activeFile = 0;
+#define FNAME_SIZE    15  
+
 void setup() {
-  u8x8.begin();
-  u8x8.setFont(u8x8_font_chroma48medium8_r);
+  initScreen();
+  initSD();
+  if(error) {
+    delay(100000);
+    return;
+  }
+  printDirectory(root);
+  u8x8.clear();
+}
+
+void loop() {
+  u8x8.setPowerSave(1);
+}
+
+void initSD() {
   if (!sd.begin())
   {
     Serial.println (F("*** No SD card detected."));
     u8x8.clearDisplay();    
     setHeadline(" . No SD Card . ");
-    delay(100000);
+    error = true;
     return;
   }
-  displaytest();
-  while (file.openNext(sd.vwd(), O_READ)) {
-    file.printName(&Serial);    
-    file.close();
+
+  if (!root.open("/", O_READ)) {
+    Serial.println (F("*** Cannot open root dir."));
+    u8x8.clearDisplay();    
+    setHeadline("Unable to read SD/");
   }
-  u8x8.clear();
 }
 
+void initScreen() {
+  u8x8.begin();
+  u8x8.setFont(u8x8_font_chroma48medium8_r);
+}
 
 void setHeadline(const char* title) {
   u8x8.drawString(0, 0, "0"); 
@@ -35,51 +58,38 @@ void setHeadline(const char* title) {
   u8x8.setInverseFont(0);
 }
 
-void displaytest() {
+void printDirectory(SdFile dir) {
+  u8x8.setFont(u8x8_font_chroma48medium8_r);
+  uint16_t dirIndex[300];
+  uint16_t activeLine = 0;
   setHeadline("       TMP      ");
-  // <->, oben unten
-  u8x8.drawString(1, 1, "1"); 
-  u8x8.drawString(2, 2, "2"); 
-  u8x8.drawString(3, 3, "3");
-  u8x8.drawString(4, 4, "4"); 
-  u8x8.drawString(5, 5, "5"); 
-  u8x8.drawString(6, 6, "6"); 
-  u8x8.drawString(7, 7, "7");
-  u8x8.drawString(8, 8, "8"); 
-  u8x8.drawString(9, 9, "9"); 
-  u8x8.drawString(10, 10, "10"); 
-  u8x8.drawString(11, 11, "123456789012345");
-  delay(5000);
-}
-
-void loop() {
   
-}
-
-void printDirectory(File dir, int numTabs) {
-   while(true) {
-     
-     File entry =  dir.openNextFile();
-     if (! entry) {
-       // no more files
-       //Serial.println("**nomorefiles**");
-       break;
-     }
-     for (uint8_t i=0; i<numTabs; i++) {
-       Serial.print('\t');
-     }
-     
-     if (!entry.isDirectory()) {
-       // files have sizes, directories do not
-       Serial.print(entry.name());
-       Serial.print("\t\t");
-       Serial.println(entry.size(), DEC);
-       u8x8.setFont(u8x8_font_chroma48medium8_r);
-       u8x8.drawString(0,0,entry.name());
-     }
-     entry.close();
-   }
-   
+  SdFile file;
+  char      fname[FNAME_SIZE];
+  while (file.openNext(&dir, O_READ)) {
+    if (file.isHidden()||false) {
+        //file hidden, skip
+    }
+    else {
+      dirIndex[numberOfFiles] = file.dirIndex();
+      activeLine++;
+      if (activeLine>11) {
+        activeLine = 1;
+        delay(2000);
+      }      
+      numberOfFiles++;
+      Serial.print(numberOfFiles);
+      Serial.write(' ');
+      file.printName(&Serial);
+      Serial.println();
+      char filename;
+      file.getName(fname, FNAME_SIZE);
+      
+      u8x8.drawString(1, activeLine, fname); 
+      delay(200);
+    }
+    file.close();
+  }
+  delay(50000);
   u8x8.clearDisplay();
-  u8x8.setPowerSave(1);
 }
